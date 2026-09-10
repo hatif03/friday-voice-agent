@@ -1,0 +1,11 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.friday_agent_id
+cache/
+.pytest_cache/
+
+# Third-party reference trees (not part of this app)
+reference/
