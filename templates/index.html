@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Friday</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-view="home">
+  <div class="shell">
+    <header class="top">
+      <div class="top-left">
+        <button id="back-btn" type="button" class="icon-btn map-only" aria-label="Back">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+        </button>
+        <a class="brand" href="/">
+          <span class="mark" aria-hidden="true"></span>
+          <span class="brand-name">Friday</span>
+        </a>
+        <p id="repo-crumb" class="repo-crumb map-only"></p>
+      </div>
+      <div class="listen-block">
+        <div class="captions" aria-live="polite">
+          <p id="voice-status" class="voice-status">Say a repository, or paste a GitHub link. <span id="mic-level" class="mic-level" hidden><i></i></span></p>
+          <p id="user-caption" class="caption user-caption"></p>
+          <p id="agent-caption" class="caption agent-caption"></p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="github-btn" type="button" class="github-btn">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span>Connect GitHub</span>
+        </button>
+        <button type="button" id="arch-btn" class="ghost map-only">Architecture</button>
+        <button type="button" id="png-btn" class="ghost map-only">Save PNG</button>
+      </div>
+    </header>
+
+    <p id="error-banner" class="error-banner" hidden></p>
+
+    <section id="landing" class="landing">
+      <div class="landing-orb landing-orb-a"></div>
+      <div class="landing-orb landing-orb-b"></div>
+      <div class="landing-orb landing-orb-c"></div>
+      <div class="landing-center">
+        <p class="eyebrow">Voice first</p>
+        <h1>AI writes the mountain. Friday keeps you in charge of what ships.</h1>
+        <p class="landing-tagline">Listening is the control. The map is what the voice points at.</p>
+        <form id="repo-form" class="composer-wrap">
+          <div class="composer">
+            <button id="voice-btn" type="button" class="voice-btn" aria-label="Listen" aria-pressed="false">
+              <svg class="icon-mic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+              <svg class="icon-stop" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+            </button>
+            <label class="sr" for="repo-input">GitHub link</label>
+            <input id="repo-input" name="repo" placeholder="https://github.com/owner/repo" value="{{ repo }}" autocomplete="off">
+            <button type="submit" class="btn-analyze">Open</button>
+          </div>
+          <p class="composer-help">Public repos open from here with no sign-in. A blob focuses that file. A pull opens the review.</p>
+        </form>
+        <section id="repo-library" class="repo-library" hidden>
+          <p class="eyebrow">Repositories you can open</p>
+          <p class="composer-help">Yours, ones shared with you, and organization repos. Friday asks before it posts anything.</p>
+          <ul id="repo-library-list"></ul>
+        </section>
+      </div>
+    </section>
+
+    <div id="workspace" class="workspace" hidden>
+      <aside class="legend-pane">
+        <section>
+          <p class="eyebrow">Reading the map</p>
+          <ul id="legend" class="legend"></ul>
+        </section>
+        <section class="folder-section">
+          <p class="eyebrow">Files</p>
+          <ul id="folder-list" class="folder-list"></ul>
+        </section>
+      </aside>
+
+      <section class="map-pane">
+        <div class="stats-bar">
+          <div id="stats" class="stats"></div>
+          <div class="mix-wrap">
+            <div id="lang-mix" class="lang-mix"></div>
+            <p id="lang-names" class="lang-names"></p>
+          </div>
+          <p id="search-count" class="search-count" aria-live="polite"></p>
+        </div>
+        <div class="map-toolbar" role="toolbar" aria-label="Map controls">
+          <button type="button" id="zoom-in" class="ghost">Zoom in</button>
+          <button type="button" id="zoom-out" class="ghost">Zoom out</button>
+          <button type="button" id="zoom-reset" class="ghost">Fit</button>
+          <span class="toolbar-gap"></span>
+          <button type="button" id="toggle-labels" class="ghost" aria-pressed="true">Labels</button>
+          <button type="button" id="toggle-imports" class="ghost" aria-pressed="true">Imports</button>
+          <button type="button" id="toggle-heat" class="ghost" aria-pressed="false">Recent changes</button>
+          <button type="button" id="toggle-loc" class="ghost" aria-pressed="false">Size by lines</button>
+          <button type="button" id="check-btn" class="ghost">Check</button>
+        </div>
+        <nav id="map-crumb" class="map-crumb" aria-label="Map location"></nav>
+        <div id="map-host" class="map-host">
+          <div id="map-skeleton" class="map-skeleton" hidden>
+            <span class="sk-orb sk-a"></span>
+            <span class="sk-orb sk-b"></span>
+            <span class="sk-orb sk-c"></span>
+            <span class="sk-orb sk-d"></span>
+          </div>
+          <p id="map-empty" class="map-empty">The map appears after a repository opens.</p>
+          <svg id="map-svg"></svg>
+          <div id="map-tooltip" class="tooltip" hidden></div>
+        </div>
+        <div id="timeline" class="timeline" hidden>
+          <div class="timeline-head">
+            <p id="timeline-label" class="muted">Recent commits. Drag to light the files each one touched.</p>
+            <button type="button" id="timeline-play" class="ghost">Play last 10</button>
+          </div>
+          <input id="timeline-range" type="range" min="0" max="0" value="0" aria-label="Commit timeline">
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="side-tabs" role="tablist">
+          <button type="button" class="side-tab" data-tab="file" aria-selected="true">File</button>
+          <button type="button" class="side-tab" data-tab="activity" aria-selected="false">Activity</button>
+          <button type="button" class="side-tab" data-tab="trail" aria-selected="false">Trail</button>
+        </div>
+        <div id="tab-file" class="tab-panel">
+          <article id="inspector" class="panel">
+            <div class="panel-head">
+              <h2>Inspector</h2>
+              <button type="button" id="inspector-close" class="ghost icon-btn" hidden aria-label="Close inspector">Close</button>
+            </div>
+            <p id="inspector-empty" class="muted">Click a circle, or ask Friday to focus a file.</p>
+            <div id="inspector-body" hidden></div>
+          </article>
+        </div>
+        <div id="tab-activity" class="tab-panel" hidden>
+          <article id="judgment" class="panel" hidden>
+            <h2>Judgment</h2>
+            <div id="judgment-body"></div>
+          </article>
+          <article id="thread" class="panel" hidden>
+            <h2>Thread</h2>
+            <div id="thread-body"></div>
+          </article>
+          <article id="noise" class="panel" hidden>
+            <h2>Likely noise</h2>
+            <div id="noise-body"></div>
+          </article>
+          <article id="architecture" class="panel" hidden>
+            <h2>Architecture</h2>
+            <p id="architecture-summary" class="muted"></p>
+            <div id="mermaid-host"></div>
+          </article>
+          <article id="activity-feed" class="panel">
+            <h2>Recent work</h2>
+            <div id="activity-body"></div>
+          </article>
+          <p id="activity-empty" class="muted">Reviews, threads, and the architecture view land here.</p>
+        </div>
+        <div id="tab-trail" class="tab-panel" hidden>
+          <article id="trail" class="panel trail">
+            <h2>Trail</h2>
+            <p id="trail-summary" class="muted">Steps show up here as Friday works.</p>
+            <div id="trail-body"></div>
+          </article>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="voice">
+      <p id="activity-line" class="activity-line"></p>
+      <details class="fallback">
+        <summary>Text fallback</summary>
+        <button id="record-btn" type="button" class="ghost">Record a WAV</button>
+        <p id="status-line" class="muted">Uses Sync transcription if the live socket is down.</p>
+        <div id="fallback-summary" class="fallback-summary"></div>
+      </details>
+    </footer>
+  </div>
+
+  <dialog id="github-dialog">
+    <div id="github-setup">
+      <p class="eyebrow">GitHub</p>
+      <h2>Sign in with GitHub</h2>
+      <p class="muted">Create one OAuth app, then Connect GitHub sends you to GitHub. After that, Friday can open repositories you own, ones shared with you, organization repos, and any public project.</p>
+      <ol class="setup-steps">
+        <li>Create an OAuth app. Homepage <code>http://127.0.0.1:5000</code>. Callback <code>http://127.0.0.1:5000/api/github/callback</code>.</li>
+        <li>Put the client id and secret in <code>.env</code> as <code>GITHUB_CLIENT_ID</code> and <code>GITHUB_CLIENT_SECRET</code>.</li>
+        <li>Restart Friday, then click Connect GitHub again.</li>
+      </ol>
+      <p><a href="https://github.com/settings/applications/new" target="_blank" rel="noreferrer">Create the OAuth app</a></p>
+    </div>
+    <div id="github-account" hidden>
+      <p class="eyebrow">GitHub</p>
+      <h2>Signed in</h2>
+      <p id="token-status" class="muted"></p>
+      <button type="button" id="disconnect-btn" class="ghost">Disconnect</button>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="github-cancel" class="ghost">Close</button>
+    </div>
+  </dialog>
+
+  <div class="ask-dock" id="ask-dock">
+    <section id="thinking" class="thinking" hidden>
+      <button type="button" id="thinking-toggle" class="thinking-toggle" aria-expanded="false"></button>
+      <div id="thinking-body" class="thinking-body" hidden></div>
+      <p id="thinking-answer" class="thinking-answer"></p>
+    </section>
+    <form id="ask-form" class="ask-bar" hidden>
+      <button type="button" class="voice-btn" aria-label="Listen" aria-pressed="false">
+        <svg class="icon-mic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        <svg class="icon-stop" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+      </button>
+      <label class="sr" for="ask-input">Ask Friday</label>
+      <input id="ask-input" type="search" placeholder="Ask about this repository, or type a path" autocomplete="off">
+      <button type="submit" class="btn-analyze">Ask</button>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <script src="/static/map.js"></script>
+  <script src="/static/voice.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
