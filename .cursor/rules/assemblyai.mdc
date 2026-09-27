@@ -1,0 +1,10 @@
+---
+description: Fetch live AssemblyAI docs before STT, streaming, or LLM Gateway changes
+alwaysApply: true
+---
+
+# AssemblyAI
+
+Before writing AssemblyAI code, read https://www.assemblyai.com/docs/agent-instructions.md and https://www.assemblyai.com/docs/llms.txt. The API has changed — do not rely on memorized parameter names.
+
+This project uses Sync STT (`transcribe.py`) and LLM Gateway (`agent.py`), not the managed Voice Agent WebSocket, unless explicitly migrating.
