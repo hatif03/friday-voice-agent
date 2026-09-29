@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "assemblyai": {
+      "source": "AssemblyAI/assemblyai-skill",
+      "sourceType": "github",
+      "skillPath": "skills/assemblyai/SKILL.md",
+      "computedHash": "b4b42195c432e4b0b4658637c49f9a8023df3d6f8a8f862f188501e957bb37df"
+    },
+    "typesafe-ai": {
+      "source": "typesafe-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typesafe-ai/SKILL.md",
+      "computedHash": "a6ed7d8a3d2b2d962f8e44b17663767c433b7d1fc32d1ed0349a44f7372513e8"
+    }
+  }
+}
