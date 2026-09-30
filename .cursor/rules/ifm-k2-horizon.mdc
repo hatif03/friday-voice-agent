@@ -1,0 +1,11 @@
+---
+description: IFM K2 Horizon and api.ifm.ai integration guidance
+alwaysApply: false
+globs: agent.py,.env.example,AGENTS.md
+---
+
+# IFM K2 Horizon
+
+When editing the agent LLM or IFM-related config, use the **k2-horizon** skill (`.agents/skills/k2-horizon/SKILL.md`) and read [docs.ifm.ai](https://docs.ifm.ai/).
+
+Hosted API: `https://api.ifm.ai/v1` — `POST /v1/chat/completions` only. Model IDs are exact strings (e.g. `IFM/K2-Horizon-375B-A23B`). Use top-level `reasoning_effort`; keep message content as plain strings for tool loops.
