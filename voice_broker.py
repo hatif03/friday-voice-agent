@@ -16,229 +16,24 @@ VOICE = "anna"
 VOICE_TOOLS = [
     {
         "type": "function",
-        "name": "open_repository",
-        "description": "Call this when the user names a GitHub repository to open, or says to look at owner/name. Downloads the tree and draws the map.",
-        "parameters": {
-            "type": "object",
-            "properties": {"repo": {"type": "string", "description": "Repository as owner/name."}},
-            "required": ["repo"],
-        },
-        "execution_mode": "hold",
-        "timeout_seconds": 180,
-    },
-    {
-        "type": "function",
-        "name": "describe_map",
-        "description": "Call this when the user asks what they are looking at, for a tour, or for the shape of the open repository.",
-        "parameters": {"type": "object", "properties": {}},
-        "execution_mode": "hold",
-        "timeout_seconds": 30,
-    },
-    {
-        "type": "function",
-        "name": "focus_file",
-        "description": "Call this when the user names a file or asks to show, open, or zoom to a path on the map.",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string", "description": "Repository-relative file path."}},
-            "required": ["path"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "list_landmarks",
-        "description": "Call this when the user asks which files matter, or for entry points, core modules, or hotspots.",
-        "parameters": {"type": "object", "properties": {}},
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "set_map_layer",
-        "description": "Call this when the user wants heat, import edges, or line-count sizing turned on or off.",
+        "name": "friday_turn",
+        "description": "Call this for every user utterance. Pass the utterance. Speak only the returned say field.",
         "parameters": {
             "type": "object",
             "properties": {
-                "layer": {"type": "string", "enum": ["heat", "edges", "loc"]},
-                "enabled": {"type": "boolean"},
+                "utterance": {"type": "string", "description": "The user's words, unchanged."},
             },
-            "required": ["layer", "enabled"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "review_changes",
-        "description": "Call this when the user asks if a change is risky, safe, dangerous, or wants the latest commit or a pull request reviewed.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "sha": {"type": "string", "description": "Commit SHA. Omit to review the latest commit."},
-                "pr_number": {"type": "integer", "description": "Pull request number, if they named one."},
-            },
-        },
-        "execution_mode": "hold",
-        "timeout_seconds": 180,
-        "response_instructions": {
-            "success": "Speak the say field. If cleared is false, do not say the change is safe.",
-            "error": "Say that the review failed and why, in one sentence.",
-        },
-    },
-    {
-        "type": "function",
-        "name": "explain_architecture",
-        "description": "Call this when the user asks how the code fits together, for an architecture diagram, or for the big picture beyond the fingerprint.",
-        "parameters": {"type": "object", "properties": {}},
-        "execution_mode": "hold",
-        "timeout_seconds": 180,
-    },
-    {
-        "type": "function",
-        "name": "list_recent_commits",
-        "description": "Call this when the user asks what changed recently or for the latest commits.",
-        "parameters": {
-            "type": "object",
-            "properties": {"count": {"type": "integer", "description": "How many commits, max 20."}},
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "list_open_issues",
-        "description": "Call this when the user asks about open issues.",
-        "parameters": {
-            "type": "object",
-            "properties": {"count": {"type": "integer"}},
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "list_pull_requests",
-        "description": "Call this when the user asks about open pull requests.",
-        "parameters": {
-            "type": "object",
-            "properties": {"count": {"type": "integer"}},
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "create_issue",
-        "description": "Stage a GitHub issue. Does not post it. Ask the user to say yes, then call confirm_write on a later turn.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string"},
-                "body": {"type": "string"},
-            },
-            "required": ["title"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "add_comment",
-        "description": "Stage a comment on an issue or pull request. Does not post it. Ask the user to say yes, then call confirm_write on a later turn.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "issue_number": {"type": "integer"},
-                "body": {"type": "string"},
-            },
-            "required": ["issue_number", "body"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "confirm_write",
-        "description": "Post or discard the staged issue or comment. Call only after the user says yes or no in a new turn.",
-        "parameters": {
-            "type": "object",
-            "properties": {"confirmed": {"type": "boolean"}},
-            "required": ["confirmed"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "scrub_history",
-        "description": "Load the recent commit timeline and light the files those commits touched. count is how many commits, up to 80. index pauses on one commit. play lights the latest commits.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "count": {"type": "integer"},
-                "index": {"type": "integer"},
-                "play": {"type": "boolean"},
-            },
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "who_touched",
-        "description": "List the authors who committed a file. Only names that GitHub returned. path is a file path on the map.",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "explain_fix",
-        "description": "Follow an issue number such as fixes #12 to the pull request that closed it, highlight introduced and fixing files, and score the fixing diff. Do not invent a root cause.",
-        "parameters": {
-            "type": "object",
-            "properties": {"query": {"type": "string"}},
-            "required": ["query"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "read_thread",
-        "description": "Read an issue or pull request thread, including comments. kind is issue or pull. Summarize in speech; the full thread stays on screen.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "kind": {"type": "string", "enum": ["issue", "pull"]},
-                "number": {"type": "integer"},
-            },
-            "required": ["kind", "number"],
-        },
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "scan_noise",
-        "description": "Find likely spam or repeated issues. List them. Never close, hide, or delete anything.",
-        "parameters": {"type": "object", "properties": {}},
-        "execution_mode": "hold",
-    },
-    {
-        "type": "function",
-        "name": "scan_security",
-        "description": "Check the open map for likely secrets, risky calls, a missing license, and dependency advisories. Report them. Never fix or close anything.",
-        "parameters": {"type": "object", "properties": {}},
-        "execution_mode": "hold",
-        "timeout_seconds": 90,
-    },
-    {
-        "type": "function",
-        "name": "ask_repository",
-        "description": "Answer a question about the open repository from the files already on the map. Use this when the user asks how something works and no other tool fits.",
-        "parameters": {
-            "type": "object",
-            "properties": {"question": {"type": "string"}},
-            "required": ["question"],
+            "required": ["utterance"],
         },
         "execution_mode": "hold",
         "timeout_seconds": 60,
+        "response_instructions": {
+            "success": "Speak only the say field, then stop.",
+            "error": "Say that the turn failed, in one sentence.",
+        },
     },
 ]
+
 
 
 def _auth_headers() -> dict:
@@ -248,19 +43,121 @@ def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
+def system_prompt() -> str:
+    """Base instructions plus the repository already on screen, when there is one."""
+    base = read_prompt("voice_system.txt").rstrip()
+    try:
+        from github_tools import active_repo
+        import map_pipeline
+
+        slug = active_repo()
+    except Exception:
+        return base
+    if not slug or "/" not in slug:
+        return base
+    owner, repo = slug.split("/", 1)
+    lines = [
+        "",
+        f"The repository already open is {owner}/{repo}.",
+        f"The owner is {owner}. The repository name is {repo}.",
+        "Pass every utterance to friday_turn. Do not answer it yourself.",
+    ]
+    cached = map_pipeline.get_cached(slug)
+    stats = (cached or {}).get("stats") or {}
+    if stats.get("files"):
+        lines.append(f"The map has {stats.get('files')} files and {stats.get('loc') or 0} lines.")
+    return base + "\n" + "\n".join(lines)
+
+
+def spoken_greeting() -> str:
+    """Spoken as written. Name the repository already on screen."""
+    try:
+        from github_tools import active_repo
+
+        slug = active_repo()
+    except Exception:
+        slug = ""
+    if not slug or "/" not in slug:
+        return "Name a repository, or ask what is open. I ask before I write anything to GitHub."
+    owner, repo = slug.split("/", 1)
+    return f"{repo} is open. It belongs to {owner}. Ask me about this map."
+
+
+def repo_keyterms() -> list:
+    try:
+        from github_tools import active_repo
+
+        slug = active_repo()
+    except Exception:
+        return []
+    if not slug or "/" not in slug:
+        return []
+    owner, repo = slug.split("/", 1)
+    return [owner, repo, slug]
+
+
+_VOICE_CANDIDATES = ("claude-haiku-4-5", "claude-sonnet-4-6")
+_voice_model = ""
+
+
+def voice_llm_model() -> str:
+    """A gateway model that accepts tools. The fast Qwen model does not."""
+    global _voice_model
+    override = (os.environ.get("VOICE_AGENT_MODEL") or "").strip()
+    if override:
+        return override
+    if _voice_model:
+        return _voice_model
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url="https://llm-gateway.assemblyai.com/v1",
+        api_key=os.environ["ASSEMBLYAI_API_KEY"],
+    )
+    probe = [
+        {
+            "type": "function",
+            "function": {
+                "name": "friday_turn",
+                "description": "Relay one utterance.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"utterance": {"type": "string"}},
+                    "required": ["utterance"],
+                },
+            },
+        }
+    ]
+    for model in _VOICE_CANDIDATES:
+        try:
+            client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "Say hi."}],
+                tools=probe,
+                tool_choice="auto",
+                max_tokens=16,
+            )
+        except Exception:
+            continue
+        _voice_model = model
+        return model
+    _voice_model = _VOICE_CANDIDATES[0]
+    return _voice_model
+
+
 def _agent_body() -> dict:
     return {
         "name": "Friday",
         "voice": {"voice_id": VOICE},
-        "system_prompt": read_prompt("voice_system.txt"),
-        "greeting": "AI writes the mountain. I keep you in charge of what ships. Name a repository, or ask what is open.",
+        "system_prompt": system_prompt(),
+        "greeting": spoken_greeting(),
         "tools": VOICE_TOOLS,
         "input": _input_config(),
         "output": {"format": {"encoding": "audio/pcm"}, "volume": 100},
         "llm": [
             {
                 "base_url": "https://llm-gateway.assemblyai.com/v1",
-                "model": "qwen3.5-4b-32k-fast",
+                "model": voice_llm_model(),
                 "api_key": os.environ["ASSEMBLYAI_API_KEY"],
             }
         ],
@@ -323,7 +220,7 @@ def mint_token() -> str:
 
 def _input_config(keyterms: list[str] | None = None) -> dict:
     terms = ["Friday", "hotspot", "blast radius", "GitHub"]
-    for term in keyterms or []:
+    for term in repo_keyterms() + list(keyterms or []):
         if term not in terms:
             terms.append(term)
     return {
@@ -334,9 +231,9 @@ def _input_config(keyterms: list[str] | None = None) -> dict:
         "voice_focus": "near-field",
         "transcription_prompt": "A developer speaking about a GitHub repository, file paths, commits, pull requests, and code review.",
         "turn_detection": {
-            "vad_threshold": 0.5,
-            "min_silence": 700,
-            "max_silence": 2400,
+            "vad_threshold": 0.35,
+            "min_silence": 320,
+            "max_silence": 900,
             "interrupt_response": True,
         },
     }
@@ -349,7 +246,7 @@ def session_update(agent_id: str, keyterms: list[str] | None = None) -> dict:
         "configure": {
             "type": "session.update",
             "session": {
-                "system_prompt": read_prompt("voice_system.txt"),
+                "system_prompt": system_prompt(),
                 "tools": VOICE_TOOLS,
                 "input": _input_config(keyterms),
             },

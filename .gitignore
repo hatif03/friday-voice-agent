@@ -4,8 +4,10 @@ venv/
 __pycache__/
 *.pyc
 .friday_agent_id
+.github_session
 cache/
 .pytest_cache/
 
 # Third-party reference trees (not part of this app)
 reference/
+docs/presentation/node_modules/

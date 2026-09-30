@@ -4,8 +4,12 @@ const FridayApp = {
   history: null,
   trailItems: [],
   playTimer: null,
+  voiceTurns: [],
+  voiceOpen: false,
+  voiceCollapsed: false,
 
   init() {
+    this.githubStatus();
     mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "default" });
     document.getElementById("repo-form").addEventListener("submit", (event) => {
       event.preventDefault();
@@ -26,7 +30,38 @@ const FridayApp = {
     document.getElementById("arch-btn").addEventListener("click", () => this.architecture());
     document.getElementById("png-btn").addEventListener("click", () => this.exportPng());
     document.querySelectorAll(".voice-btn").forEach((button) => {
-      button.addEventListener("click", () => this.toggleVoice());
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        button.setPointerCapture(event.pointerId);
+        this.holdPointer = true;
+        this.beginTalk();
+      });
+      button.addEventListener("pointerup", () => this.releasePointer());
+      button.addEventListener("pointercancel", () => this.releasePointer());
+    });
+    const ask = document.getElementById("ask-input");
+    if (ask) ask.placeholder = `Hold the mic or ${this.talkLabel()} to talk, or type a question`;
+    document.addEventListener("keydown", (event) => {
+      if (!this.isHoldKey(event)) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      this.holdKey = true;
+      this.beginTalk();
+    });
+    document.addEventListener("keyup", (event) => {
+      if (!this.isHoldKey(event)) return;
+      event.preventDefault();
+      this.holdKey = false;
+      if (!this.holdPointer) this.endTalk();
+    });
+    window.addEventListener("blur", () => {
+      this.holdKey = false;
+      this.holdPointer = false;
+      this.endTalk();
+    });
+    document.getElementById("voice-sheet-toggle").addEventListener("click", () => {
+      this.voiceCollapsed = !this.voiceCollapsed;
+      this.renderVoice();
     });
     document.getElementById("record-btn").addEventListener("click", () => this.toggleRecord());
     document.getElementById("disconnect-btn").addEventListener("click", () => this.disconnectToken());
@@ -61,12 +96,6 @@ const FridayApp = {
       event.preventDefault();
       this.ask(document.getElementById("ask-input").value);
     });
-    document.getElementById("thinking-toggle").addEventListener("click", (event) => {
-      const body = document.getElementById("thinking-body");
-      const open = body.hidden;
-      body.hidden = !open;
-      event.currentTarget.setAttribute("aria-expanded", open ? "true" : "false");
-    });
     document.getElementById("check-btn").addEventListener("click", () => this.checkSecurity());
     document.getElementById("timeline-range").addEventListener("input", (event) => this.scrub(Number(event.target.value)));
     document.getElementById("timeline-play").addEventListener("click", () => this.playTimeline());
@@ -78,7 +107,6 @@ const FridayApp = {
       if (event.key === "-" || event.key === "_") FridayMap.zoomBy(0.8);
       if (event.key === "0") FridayMap.resetZoom();
     });
-    this.githubStatus();
     const params = new URLSearchParams(location.search);
     const githubFlag = params.get("github");
     if (githubFlag === "connected") this.activity("Signed in with GitHub.");
@@ -102,9 +130,19 @@ const FridayApp = {
     document.getElementById("landing").hidden = false;
     document.getElementById("workspace").hidden = true;
     document.getElementById("ask-form").hidden = true;
-    document.getElementById("thinking").hidden = true;
     document.getElementById("repo-input").value = "";
     document.getElementById("error-banner").hidden = true;
+    this.closeChat();
+  },
+
+  closeChat() {
+    this.chatClosed = true;
+    this.voiceTurns = [];
+    this.voiceOpen = false;
+    this.voiceLive = false;
+    this.voiceCollapsed = false;
+    if (window.FridayVoice && (FridayVoice.ready || FridayVoice.ws)) FridayVoice.disconnect();
+    this.renderVoice();
   },
 
   showTab(name) {
@@ -188,11 +226,26 @@ const FridayApp = {
     if (hadRepo) history.replaceState({}, "", url);
     else history.pushState({}, "", url);
     this.activity(`Opened ${data.slug}. ${data.stats.files} files, ${data.stats.edges} imports.`);
+    if (window.FridayVoice) FridayVoice.syncRepo(data.voice_prompt, data.voice_keyterms);
     if (data.focus_path) FridayMap.focus(data.focus_path);
     if (data.pull_number) this.reviewPull(data.pull_number);
     this.loadHistory();
     if (FridayVoice.ws && FridayVoice.ws.readyState === WebSocket.OPEN) {
       FridayVoice.updateKeyterms(data.keyterms || []);
+    }
+    void this.warmupVoice();
+  },
+
+  async warmupVoice() {
+    if (!window.FridayVoice || FridayVoice.warming || FridayVoice.ready) return;
+    FridayVoice.warming = true;
+    try {
+      await FridayVoice.primeAudio();
+      await FridayVoice.connect();
+    } catch (err) {
+      /* typed Ask still works */
+    } finally {
+      FridayVoice.warming = false;
     }
   },
 
@@ -367,7 +420,7 @@ const FridayApp = {
 
   applyCommands(commands) {
     commands.forEach((command) => {
-      if (command.type === "load_map" && command.repo) this.openRepo(command.repo);
+      if (command.type === "load_map" && command.repo && (!this.map || this.map.slug !== command.repo)) this.openRepo(command.repo);
       if (command.type === "focus" && command.path) FridayMap.focus(command.path);
       if (command.type === "layer") {
         if (command.layer === "heat") {
@@ -399,6 +452,7 @@ const FridayApp = {
       if (command.type === "architecture") this.showArchitecture(command.mermaid, command.summary);
       if (command.type === "security") this.showSecurity(command.security);
       if (command.type === "ask") this.showThinking((command.ask || {}).steps || [], (command.ask || {}).say, (command.ask || {}).paths);
+      if (command.type === "connect_github") this.connectGithub();
     });
   },
 
@@ -420,6 +474,11 @@ const FridayApp = {
     const say = document.createElement("p");
     say.textContent = gate.say || "";
     body.appendChild(say);
+    const route = document.createElement("p");
+    route.textContent = gate.route === "escalate"
+      ? `Escalated. ${gate.decided_by || "the reader"} decided.`
+      : "Jev accepted this verdict.";
+    body.appendChild(route);
     const jev = (judgment.jev || {}).answers || {};
     const list = document.createElement("ul");
     list.className = "links";
@@ -501,7 +560,7 @@ const FridayApp = {
   },
 
   async connectGithub() {
-    const status = this.github || await this.githubStatus();
+    const status = await this.githubStatus();
     const setup = document.getElementById("github-setup");
     const account = document.getElementById("github-account");
     if (status.connected) {
@@ -517,7 +576,8 @@ const FridayApp = {
       document.getElementById("github-dialog").showModal();
       return;
     }
-    window.location.href = "/api/github/oauth/start";
+    const back = `${location.pathname}${location.search}`;
+    window.location.href = `/api/github/oauth/start?return=${encodeURIComponent(back)}`;
   },
 
   async loadRepoLibrary() {
@@ -564,8 +624,11 @@ const FridayApp = {
 
   setGithubButton(login) {
     const button = document.getElementById("github-btn");
-    const label = button.querySelector("span");
-    if (label) label.textContent = login ? `GitHub · ${login}` : "Connect GitHub";
+    const label = document.getElementById("github-label");
+    if (!button || !label) return;
+    const connected = Boolean(login);
+    button.classList.toggle("is-connected", connected);
+    label.textContent = connected ? `GitHub · ${login}` : "Connect GitHub";
   },
 
   async disconnectToken() {
@@ -591,9 +654,15 @@ const FridayApp = {
     this.github = data;
     const setup = document.getElementById("github-setup");
     const account = document.getElementById("github-account");
+    if (data.pending_write && new URLSearchParams(location.search).get("github") === "connected") {
+      const where = data.repo_url ? ` [${data.repo_url}](${data.repo_url})` : "";
+      this.chatClosed = false;
+      this.caption("agent", `Signed in. The draft “${data.pending_write}” is still waiting. Say yes to post it.${where}`, true);
+      this.activity(`Signed in with GitHub. Say yes to post ${data.pending_write}.`);
+    }
     if (data.login) {
-      document.getElementById("token-status").textContent = `Signed in as ${data.login}. The token stays on this server.`;
       this.setGithubButton(data.login);
+      document.getElementById("token-status").textContent = `Signed in as ${data.login}. The token stays on this server.`;
       setup.hidden = true;
       account.hidden = false;
       this.loadRepoLibrary();
@@ -705,42 +774,82 @@ const FridayApp = {
     return card;
   },
 
-  async ask(question) {
-    const text = (question || "").trim();
-    if (!text || !this.map) return;
-    this.trail({ step: "search", detail: text });
-    this.activity("Looking at the files that match.");
-    const response = await fetch("/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: text }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      this.showError(data.detail || "The question did not finish.");
-      return;
+  lastUserQuestion() {
+    for (let i = this.voiceTurns.length - 1; i >= 0; i -= 1) {
+      const turn = this.voiceTurns[i];
+      if (turn && turn.who === "user" && String(turn.text || "").trim()) return String(turn.text).trim();
     }
-    this.showThinking(data.steps || [], data.say, data.paths || []);
+    return "";
   },
 
-  showThinking(steps, say, paths) {
-    const box = document.getElementById("thinking");
-    const toggle = document.getElementById("thinking-toggle");
-    const body = document.getElementById("thinking-body");
-    box.hidden = false;
-    const latest = steps[steps.length - 1];
-    toggle.textContent = latest ? `${latest.step}: ${latest.detail || ""}` : "Done";
-    body.hidden = true;
-    body.replaceChildren();
-    steps.forEach((step) => {
-      const line = document.createElement("p");
-      line.textContent = `${step.step}: ${step.detail || ""}`;
-      body.appendChild(line);
-      this.trail(step);
-    });
-    document.getElementById("thinking-answer").textContent = say || "";
+  async askQuestion(text, options = {}) {
+    const line = String(text || "").trim();
+    if (!line || !this.map) return;
+    const now = Date.now();
+    if (
+      !options.force
+      && this.lastAnsweredQuestion === line
+      && now - (this.lastAnsweredAt || 0) < 4000
+      && this.lastAnswerPayload
+    ) {
+      return this.lastAnswerPayload;
+    }
+    this.chatClosed = false;
+    this.voiceCollapsed = false;
+    if (options.showUser) this.caption("user", line, true);
+    this.attachTrace([{ step: "ask", detail: line }]);
+    this.activity("Looking at the open repository.");
+    this.setVoice("Reading the open repository.", true);
+    let payload = null;
+    try {
+      if (window.FridayVoice) {
+        payload = await FridayVoice.fetchAnswer(line);
+      } else {
+        const response = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: line }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "The question did not finish.");
+        payload = {
+          say: data.say || "",
+          ui_commands: data.ui_commands || [],
+          trace: data.steps || [],
+          result: { say: data.say || "", paths: data.paths || [] },
+        };
+      }
+    } catch (err) {
+      const detail = err.message || "I could not reach the server.";
+      this.showError(detail);
+      this.caption("agent", detail, true);
+      return;
+    } finally {
+      this.setVoice(this.holdPrompt(), false);
+    }
+    (payload.trace || []).forEach((step) => this.trail(step));
+    this.attachTrace(payload.trace || []);
+    this.applyCommands(payload.ui_commands || []);
+    const say = payload.say || (payload.result && payload.result.say) || "";
+    this.caption("agent", say || "I could not answer that.", true);
     if (say) this.activity(say);
-    if (paths && paths.length) FridayMap.highlightPaths(paths);
+    const paths = (payload.result && payload.result.paths) || [];
+    if (paths.length) FridayMap.highlightPaths(paths);
+    this.lastAnsweredQuestion = line;
+    this.lastAnsweredAt = Date.now();
+    this.lastAnswerPayload = payload;
+    if (window.FridayVoice) FridayVoice.ignoreAgentTranscript = true;
+    return payload;
+  },
+
+  async ask(question) {
+    let text = (question || "").trim();
+    const fromVoice = !text;
+    if (!text) text = this.lastUserQuestion();
+    if (!text || !this.map) return;
+    const input = document.getElementById("ask-input");
+    if (input) input.value = "";
+    await this.askQuestion(text, { showUser: !fromVoice });
   },
 
   async checkSecurity() {
@@ -898,52 +1007,204 @@ const FridayApp = {
     body.prepend(details);
   },
 
-  async toggleVoice() {
-    const buttons = document.querySelectorAll(".voice-btn");
-    if (FridayVoice.ready) {
-      FridayVoice.disconnect();
-      this.setVoice("Say a repository, or paste a GitHub link.", false);
+  macOS() {
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+    return /mac/i.test(platform);
+  },
+
+  talkLabel() {
+    return this.macOS() ? "Option" : "Ctrl";
+  },
+
+  holdPrompt() {
+    return `Hold the mic or ${this.talkLabel()} to talk.`;
+  },
+
+  isHoldKey(event) {
+    if (!event || event.metaKey || event.shiftKey) return false;
+    if (this.macOS()) return event.key === "Alt" && !event.ctrlKey;
+    return event.key === "Control" && !event.altKey;
+  },
+
+  typing(event) {
+    const field = event.target || document.activeElement;
+    if (!field) return false;
+    const name = field.tagName;
+    return name === "INPUT" || name === "TEXTAREA" || field.isContentEditable;
+  },
+
+  releasePointer() {
+    this.holdPointer = false;
+    this.endTalk();
+  },
+
+  async beginTalk() {
+    if (this.talking) return;
+    this.talking = true;
+    this.chatClosed = false;
+    FridayVoice.lastAnswerLine = "";
+    const socketOpen = FridayVoice.ws && FridayVoice.ws.readyState === WebSocket.OPEN && FridayVoice.ready;
+    if (socketOpen && FridayVoice.capturing) {
+      FridayVoice.releaseGen = (FridayVoice.releaseGen || 0) + 1;
+      FridayVoice.sending = true;
+      if (FridayVoice.audio && FridayVoice.audio.state === "suspended") FridayVoice.audio.resume();
+      this.setVoice("Listening. Release to send.", true);
       return;
     }
-    buttons.forEach((button) => { button.disabled = true; });
-    this.setVoice("Connecting to the Voice Agent…", false);
+    this.setVoice(socketOpen ? "Listening. Release to send." : "Connecting to the Voice Agent…", !!socketOpen);
     try {
       await FridayVoice.primeAudio();
-      await FridayVoice.connect();
+      if (!socketOpen) await FridayVoice.connect();
+      if (!this.talking) return;
+      await FridayVoice.ensureCapture();
+      if (!this.talking) {
+        FridayVoice.sending = false;
+        return;
+      }
+      FridayVoice.releaseGen = (FridayVoice.releaseGen || 0) + 1;
+      FridayVoice.sending = true;
+      this.setVoice("Listening. Release to send.", true);
     } catch (err) {
-      this.showError(err.message || "Voice connection failed. The text fallback still works.");
-      this.setVoice("Voice Agent is not connected.", false);
-    } finally {
-      buttons.forEach((button) => { button.disabled = false; });
+      this.talking = false;
+      FridayVoice.sending = false;
+      this.showError(err.message || "Microphone did not start.");
+      this.setVoice(FridayVoice.ready ? this.holdPrompt() : "Voice Agent is not connected.", false);
     }
   },
 
-  setLevel(level) {
-    const meter = document.getElementById("mic-level");
-    if (!meter) return;
-    const bar = meter.querySelector("i");
-    if (level == null) {
-      meter.hidden = true;
-      if (bar) bar.style.width = "0";
-      return;
-    }
-    meter.hidden = false;
-    if (bar) bar.style.width = `${Math.max(4, Math.min(100, Math.round(level * 400)))}%`;
+  endTalk() {
+    const live = this.talking || (window.FridayVoice && FridayVoice.sending);
+    if (!live) return;
+    this.talking = false;
+    if (window.FridayVoice) FridayVoice.releaseHold();
+    if (FridayVoice.ready) this.setVoice(this.holdPrompt(), false);
   },
+
+  setLevel() {},
 
   setVoice(text, on) {
-    const status = document.getElementById("voice-status");
-    const meter = document.getElementById("mic-level");
-    status.textContent = text;
-    if (meter) status.appendChild(meter);
+    if (!this.chatClosed) this.voiceOpen = true;
+    this.voiceLive = !!on;
+    document.getElementById("voice-status").textContent = text;
     document.querySelectorAll(".voice-btn").forEach((button) => {
       button.setAttribute("aria-pressed", on ? "true" : "false");
       button.setAttribute("aria-label", on ? "Stop" : "Listen");
     });
+    this.renderVoice();
   },
 
-  caption(who, text) {
-    document.getElementById(who === "user" ? "user-caption" : "agent-caption").textContent = text;
+  fillAnswer(node, text) {
+    if (!window.marked) {
+      node.textContent = text;
+      return;
+    }
+    const box = document.createElement("div");
+    box.innerHTML = marked.parse(String(text || ""), { gfm: true, breaks: true });
+    box.querySelectorAll("script,iframe,object,embed,link,style").forEach((el) => el.remove());
+    box.querySelectorAll("*").forEach((el) => {
+      [...el.attributes].forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith("on") || (name === "href" && /^\s*javascript:/i.test(attr.value || ""))) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    box.querySelectorAll("a").forEach((el) => {
+      const href = el.getAttribute("href") || "";
+      if (/^https?:\/\//i.test(href)) {
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noreferrer");
+      }
+    });
+    node.replaceChildren(...box.childNodes);
+  },
+
+  caption(who, text, final) {
+    if (this.chatClosed) return;
+    const value = String(text || "").trim();
+    if (!value) return;
+    const last = this.voiceTurns[this.voiceTurns.length - 1];
+    if (last && last.who === who && last.text === value && (!!last.final || !final)) return;
+    if (who === "user") {
+      const previous = this.voiceTurns[this.voiceTurns.length - 1];
+      if (previous && previous.who === "agent") previous.final = true;
+    }
+    const prior = this.voiceTurns[this.voiceTurns.length - 1];
+    if (!prior || prior.who !== who || prior.final) {
+      this.voiceTurns.push({ who, text: value, final: !!final, trace: [] });
+    } else {
+      prior.text = value;
+      if (final) prior.final = true;
+    }
+    if (this.voiceTurns.length > 24) this.voiceTurns.splice(0, this.voiceTurns.length - 24);
+    this.voiceOpen = true;
+    this.renderVoice();
+  },
+
+  attachTrace(steps) {
+    if (this.chatClosed) return;
+    const rows = (steps || []).filter(Boolean);
+    if (!rows.length) return;
+    let last = this.voiceTurns[this.voiceTurns.length - 1];
+    if (!last || last.who !== "agent" || last.final) {
+      last = { who: "agent", text: "", final: false, trace: [] };
+      this.voiceTurns.push(last);
+    }
+    last.trace = (last.trace || []).concat(rows);
+    this.voiceOpen = true;
+    this.renderVoice();
+  },
+
+  renderVoice() {
+    const sheet = document.getElementById("voice-sheet");
+    const log = document.getElementById("voice-log");
+    const preview = document.getElementById("voice-preview");
+    const toggle = document.getElementById("voice-sheet-toggle");
+    if (!sheet || !log) return;
+    sheet.hidden = !this.voiceOpen;
+    sheet.classList.toggle("is-collapsed", this.voiceCollapsed);
+    sheet.classList.toggle("is-live", !!this.voiceLive);
+    document.body.classList.toggle("voice-open", this.voiceOpen);
+    document.body.classList.toggle("voice-collapsed", this.voiceOpen && this.voiceCollapsed);
+    if (toggle) toggle.setAttribute("aria-expanded", this.voiceCollapsed ? "false" : "true");
+    const latest = this.voiceTurns[this.voiceTurns.length - 1];
+    if (preview) preview.textContent = latest ? latest.text : "";
+    log.replaceChildren();
+    this.voiceTurns.forEach((turn) => {
+      if (turn.who === "agent" && turn.trace && turn.trace.length) {
+        const details = document.createElement("details");
+        details.className = "voice-trace";
+        details.open = !turn.final;
+        const summary = document.createElement("summary");
+        summary.textContent = turn.final ? `${turn.trace.length} steps` : "Working";
+        details.appendChild(summary);
+        const list = document.createElement("ol");
+        turn.trace.forEach((step) => {
+          const item = document.createElement("li");
+          const kind = document.createElement("span");
+          kind.className = "pill";
+          kind.textContent = step.step || step.name || "step";
+          item.appendChild(kind);
+          item.appendChild(document.createTextNode(this.traceLine(step)));
+          list.appendChild(item);
+        });
+        details.appendChild(list);
+        log.appendChild(details);
+      }
+      if (!turn.text) return;
+      const line = document.createElement(turn.who === "agent" ? "div" : "p");
+      line.className = `voice-turn ${turn.who}${turn.final ? "" : " is-partial"}`;
+      if (turn.who === "agent") this.fillAnswer(line, turn.text);
+      else line.textContent = turn.text;
+      log.appendChild(line);
+    });
+    log.scrollTop = log.scrollHeight;
+  },
+
+  traceLine(step) {
+    const detail = step.detail || step.name || "";
+    const paths = Array.isArray(step.paths) ? step.paths.slice(0, 4).join(", ") : "";
+    return [detail, paths].filter(Boolean).join(" · ").slice(0, 180);
   },
 
   activity(text) {

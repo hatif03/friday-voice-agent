@@ -1,8 +1,9 @@
 """Persist opened repos, questions, and scans.
 
 The browser never waits on this. A local SQLite file always records the row.
-If SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set, the same row is also
-sent to the friday project. A failure there is ignored.
+If SUPABASE_URL is set, the same row is also sent to the friday project.
+The server key is SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_PUBLISHABLE_KEY
+when the project only allows inserts. A failure there is ignored.
 """
 import os
 import sqlite3
@@ -68,7 +69,10 @@ def _db() -> sqlite3.Connection:
 
 def _remote(table: str, row: dict) -> None:
     url = os.environ.get("SUPABASE_URL", "").strip()
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    key = (
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+        or os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    )
     if not url or not key:
         return
     try:

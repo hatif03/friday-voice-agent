@@ -3,6 +3,8 @@ import os
 
 from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
 
+ACCEPT_AT = 0.9
+
 REVIEW_QUESTIONS = {
     "risk": Score(
         instructions="Overall merge risk for this change",
@@ -100,8 +102,64 @@ def _run(state: str, questions: dict) -> dict:
 
 
 def review_change(title: str, body: str, diff: str) -> dict:
+    """Verdict is its own call so its confidence is not mixed with the rubric."""
     state = f"TITLE\n{title}\n\nBODY\n{body[:4000]}\n\nDIFF\n{diff[:20000]}"
-    return _run(state, REVIEW_QUESTIONS)
+    verdict = _run(state, {"verdict": REVIEW_QUESTIONS["verdict"]})
+    rubric = _run(state, {key: value for key, value in REVIEW_QUESTIONS.items() if key != "verdict"})
+    answers = {}
+    answers.update((verdict.get("answers") or {}))
+    answers.update((rubric.get("answers") or {}))
+    return {"model": verdict.get("model") or "jev-latest", "answers": answers}
+
+
+def route(review: dict) -> str:
+    """Accept a confident Jev verdict. Escalate code questions when it is unsure."""
+    confidence = (((review or {}).get("answers") or {}).get("verdict") or {}).get("confidence")
+    if isinstance(confidence, (int, float)) and confidence >= ACCEPT_AT:
+        return "accept"
+    return "escalate"
+
+
+TOOL_CRITERIA = {
+    "explain_project": "Explain what the open repository is and what it does, from its README and source. Use this for the project, the repo, or an overview. Not one source file, and not the circle map.",
+    "explain_file": "Explain what a source file does, including pronouns that mean the focused file. Not merely moving the map.",
+    "focus_file": "Move the map onto a file. Do not use this when they ask what the file does.",
+    "describe_map": "Describe the circle map of the repository already open.",
+    "list_landmarks": "Name entry points, core files, and hotspots.",
+    "list_open_issues": "List open GitHub issues.",
+    "list_pull_requests": "List open pull requests.",
+    "list_recent_commits": "List recent commits.",
+    "read_thread": "Read one numbered issue or pull request thread.",
+    "who_touched": "Name who committed a file.",
+    "review_changes": "Review a commit or pull request for risk.",
+    "explain_architecture": "Explain how the system fits together.",
+    "scan_security": "Check for secrets, risky calls, and license issues.",
+    "scan_noise": "Find repeated or spam issues.",
+    "scrub_history": "Show the commit timeline on the map.",
+    "explain_fix": "Follow an issue number to the change that fixed it.",
+    "set_map_layer": "Turn heat, import lines, or line-count sizing on or off.",
+    "create_issue": "Stage a new GitHub issue. This does not post it.",
+    "add_comment": "Stage a comment. This does not post it.",
+    "confirm_write": "Post or cancel a staged write after a later yes or no.",
+    "open_repository": "Open a different repository than the one already open.",
+    "give_up": "No tool and no file in view can answer. Say so honestly.",
+}
+
+
+def choose_tool(state: str) -> dict:
+    """Pick one tool. Jev returns the choice and its confidence, not the spoken answer."""
+    questions = {
+        "tool": Choice(
+            instructions="Which single tool should answer this utterance? Pronouns such as this file mean the focused file.",
+            criteria=TOOL_CRITERIA,
+        )
+    }
+    return _run(state, questions)
+
+
+def tool_choice(decision: dict) -> tuple:
+    answer = ((decision or {}).get("answers") or {}).get("tool") or {}
+    return answer.get("choice"), answer.get("confidence")
 
 
 def choose_landmark(candidates: list[str]) -> dict:
@@ -142,15 +200,3 @@ def finding_noul(title: str, evidence: str) -> dict:
     return _run(state, questions)
 
 
-def needs_second_reader(review: dict) -> bool:
-    answers = (review or {}).get("answers") or {}
-    depth = (answers.get("review_depth") or {}).get("choice")
-    security = (answers.get("needs_security") or {}).get("noul") or 0
-    confidence = (answers.get("verdict") or {}).get("confidence")
-    if depth == "deep":
-        return True
-    if isinstance(security, (int, float)) and security >= 0.55:
-        return True
-    if isinstance(confidence, (int, float)) and confidence < 0.55:
-        return True
-    return False

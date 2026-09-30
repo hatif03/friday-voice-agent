@@ -80,14 +80,36 @@ def _assistant_message_for_history(message) -> dict:
     return payload
 
 
-def run_agent(spoken_instruction: str) -> dict:
+def session_context() -> str:
+    """Runtime repo state for the reference-style GitHub agent loop."""
+    import github_tools
+
+    lines = [f"Active repository: {github_tools.active_repo()}."]
+    pending = github_tools.pending_write()
+    if pending:
+        preview = pending.get("preview") or pending.get("kind") or "write"
+        lines.append(
+            f"A {pending.get('kind') or 'write'} is staged ({preview}). "
+            "Do not call confirm_write until the user says yes in a new turn."
+        )
+    last = github_tools.last_posted_issue()
+    if last:
+        lines.append(f"The last issue posted in this session was #{last}.")
+    return "\n".join(lines)
+
+
+def run_agent(spoken_instruction: str, transcript_id: str = "") -> dict:
     """Runs the tool-calling loop. Returns a dict with the agent's final
     summary text and the list of tool calls made along the way, each as
     {"name": str, "args": dict, "result": Any}."""
+    import github_tools
+
+    spoken_instruction = (spoken_instruction or "").strip()
+    github_tools.set_turn_context(transcript_id or spoken_instruction, spoken_instruction)
     client = _client()
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": f"{SYSTEM_PROMPT.rstrip()}\n\n{session_context()}"},
         {"role": "user", "content": spoken_instruction},
     ]
     tool_call_log = []

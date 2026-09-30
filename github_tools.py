@@ -6,11 +6,12 @@ opened). create_issue and add_comment only stage a write. confirm_write
 posts it after a later user turn says yes.
 """
 import contextvars
+import json
 import os
 import re
 import secrets
 import time
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -27,9 +28,11 @@ API_ROOT = "https://api.github.com"
 
 _active_repo = None
 _pending = None  # {"kind", "payload", "transcript_id"}
+_last_posted_issue = 0
 _session_login = None
 _file_token = os.environ.get("GITHUB_TOKEN") or ""
-_oauth_states: dict[str, float] = {}
+_oauth_states: dict = {}
+_SESSION_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".github_session")
 OAUTH_CALLBACK = "http://127.0.0.1:5000/api/github/callback"
 
 
@@ -56,6 +59,59 @@ def _repo() -> str:
     return repo
 
 
+def safe_return_path(path: str) -> str:
+    """Keep OAuth on this app. Refuse anything that is not a local path."""
+    raw = (path or "").strip()
+    if not raw.startswith("/") or raw.startswith("//") or "\\" in raw:
+        return "/"
+    parts = urlsplit(raw)
+    if parts.scheme or parts.netloc:
+        return "/"
+    return raw
+
+
+def _save_session(token: str, login: str) -> None:
+    tmp = _SESSION_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump({"login": login, "token": token}, handle)
+    os.replace(tmp, _SESSION_PATH)
+
+
+def _clear_session() -> None:
+    try:
+        os.remove(_SESSION_PATH)
+    except OSError:
+        pass
+
+
+def _load_session() -> None:
+    """Restore a previous sign-in when .env has no token. The token stays on disk and in this process."""
+    global _session_login
+    if _file_token.strip():
+        return
+    try:
+        with open(_SESSION_PATH, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return
+    token = str((data or {}).get("token") or "").strip()
+    login = str((data or {}).get("login") or "").strip()
+    if not token:
+        return
+    os.environ["GITHUB_TOKEN"] = token
+    _session_login = login
+
+
+_load_session()
+
+
+def repo_web_url(suffix: str = "") -> str:
+    slug = active_repo()
+    if not slug:
+        return ""
+    return f"https://github.com/{slug}{suffix}"
+
+
 def connect_github(token: str) -> dict:
     """Hold a personal access token in this process. Return only the login."""
     global _session_login
@@ -76,6 +132,7 @@ def connect_github(token: str) -> dict:
     login = (response.json() or {}).get("login") or ""
     os.environ["GITHUB_TOKEN"] = token
     _session_login = login
+    _save_session(token, login)
     return {"connected": True, "login": login}
 
 
@@ -84,10 +141,28 @@ def disconnect_github() -> dict:
     global _session_login
     os.environ["GITHUB_TOKEN"] = _file_token
     _session_login = None
+    _clear_session()
     return {"connected": bool(_file_token.strip()), "login": None}
 
 
+def _remember_login() -> None:
+    """Fill in the GitHub login for a token that survived a restart."""
+    global _session_login
+    token = (os.environ.get("GITHUB_TOKEN") or "").strip()
+    if not token or _session_login:
+        return
+    response = requests.get(f"{API_ROOT}/user", headers=_headers(), timeout=30)
+    if response.status_code == 401 and token != _file_token.strip():
+        os.environ["GITHUB_TOKEN"] = _file_token
+        _session_login = None
+        _clear_session()
+        return
+    if response.ok:
+        _session_login = (response.json() or {}).get("login") or ""
+
+
 def github_status() -> dict:
+    _remember_login()
     token = (os.environ.get("GITHUB_TOKEN") or "").strip()
     client_id = (os.environ.get("GITHUB_CLIENT_ID") or "").strip()
     client_secret = (os.environ.get("GITHUB_CLIENT_SECRET") or "").strip()
@@ -96,6 +171,8 @@ def github_status() -> dict:
         "login": _session_login,
         "source": "session" if _session_login else ("env" if token else "none"),
         "oauth": bool(client_id and client_secret),
+        "pending_write": ((_pending or {}).get("preview") or ""),
+        "repo_url": repo_web_url(),
     }
 
 
@@ -103,17 +180,20 @@ def oauth_callback_url() -> str:
     return (os.environ.get("GITHUB_OAUTH_CALLBACK") or OAUTH_CALLBACK).strip()
 
 
-def begin_oauth() -> str:
+def begin_oauth(return_to: str = "") -> str:
     """Start GitHub's authorization-code flow. The secret never leaves the server."""
     client_id = (os.environ.get("GITHUB_CLIENT_ID") or "").strip()
     if not client_id or not (os.environ.get("GITHUB_CLIENT_SECRET") or "").strip():
         raise RuntimeError("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are not set.")
     now = time.time()
-    stale = [key for key, expires in _oauth_states.items() if expires < now]
+    stale = [
+        key for key, record in _oauth_states.items()
+        if (record.get("expires") if isinstance(record, dict) else record) < now
+    ]
     for key in stale:
         _oauth_states.pop(key, None)
     state = secrets.token_urlsafe(24)
-    _oauth_states[state] = now + 600
+    _oauth_states[state] = {"expires": now + 600, "return_to": safe_return_path(return_to)}
     query = urlencode({
         "client_id": client_id,
         "redirect_uri": oauth_callback_url(),
@@ -125,7 +205,9 @@ def begin_oauth() -> str:
 
 def finish_oauth(code: str, state: str) -> dict:
     """Trade the one-time code for a token and keep that token on the server."""
-    expires = _oauth_states.pop(state or "", None)
+    record = _oauth_states.pop(state or "", None)
+    expires = record.get("expires") if isinstance(record, dict) else record
+    return_to = record.get("return_to") if isinstance(record, dict) else "/"
     if not expires or expires < time.time():
         raise RuntimeError("That GitHub sign-in expired. Start it again.")
     response = requests.post(
@@ -143,7 +225,9 @@ def finish_oauth(code: str, state: str) -> dict:
     token = (payload or {}).get("access_token") or ""
     if not response.ok or not token:
         raise RuntimeError("GitHub did not finish sign-in.")
-    return connect_github(token)
+    signed_in = connect_github(token)
+    signed_in["return_to"] = safe_return_path(return_to or "/")
+    return signed_in
 
 
 def list_accessible_repos(limit: int = 80) -> dict:
@@ -241,6 +325,32 @@ def get_commit_diff(sha: str) -> dict:
     }
 
 
+def last_posted_issue() -> int:
+    return int(_last_posted_issue or 0)
+
+
+def note_posted_issue(number: int) -> None:
+    global _last_posted_issue
+    if number:
+        _last_posted_issue = int(number)
+
+
+def find_issue_number(title: str, count: int = 30) -> int:
+    """Resolve an open issue number from its title (exact, then substring)."""
+    needle = (title or "").strip().lower()
+    if not needle:
+        return 0
+    issues = (list_open_issues(count=count) or {}).get("issues") or []
+    for item in issues:
+        if (item.get("title") or "").strip().lower() == needle:
+            return int(item["number"])
+    for item in issues:
+        hay = (item.get("title") or "").strip().lower()
+        if needle in hay or hay in needle:
+            return int(item["number"])
+    return 0
+
+
 def list_open_issues(count: int = 10) -> dict:
     """List open issues (pull requests are excluded)."""
     count = max(1, min(count, 30))
@@ -314,6 +424,7 @@ def _stage(kind: str, payload: dict, transcript_id: str) -> dict:
         "say": (
             f"I drafted a {kind} ({preview}). I have not posted it. "
             "Say yes if you want it on GitHub."
+            + (f" [The repository]({repo_web_url()})." if repo_web_url() else "")
         ),
     }
 
@@ -360,16 +471,24 @@ def confirm_write(confirmed: bool = False, transcript_id: str = "", user_transcr
             "status": "not_confirmed",
             "say": "I did not hear a yes, so I left it unposted.",
         }
-    _require_token()
+    try:
+        _require_token()
+    except RuntimeError:
+        home = repo_web_url()
+        say = "The draft is still waiting. Connect GitHub, then say yes again."
+        if home:
+            say += f" [{active_repo()}]({home})."
+        return {"status": "needs_github", "say": say}
     pending = _pending
     _pending = None
     if pending["kind"] == "issue":
         data = _request("POST", f"/repos/{_repo()}/issues", json=pending["payload"])
+        note_posted_issue(data["number"])
         return {
             "status": "posted",
             "number": data["number"],
             "url": data["html_url"],
-            "say": f"Posted issue {data['number']}. {data['html_url']}",
+            "say": f"Posted issue {data['number']}. [Open it on GitHub]({data['html_url']}).",
         }
     payload = pending["payload"]
     data = _request(
@@ -377,7 +496,7 @@ def confirm_write(confirmed: bool = False, transcript_id: str = "", user_transcr
         f"/repos/{_repo()}/issues/{payload['issue_number']}/comments",
         json={"body": payload["body"]},
     )
-    return {"status": "posted", "url": data["html_url"], "say": f"Posted the comment. {data['html_url']}"}
+    return {"status": "posted", "url": data["html_url"], "say": f"Posted the comment. [Open it on GitHub]({data['html_url']})."}
 
 
 def pending_write() -> dict | None:

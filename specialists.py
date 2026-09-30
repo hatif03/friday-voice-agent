@@ -1,7 +1,7 @@
-"""Drafts and second reads.
+"""Phrasing and escalated reads.
 
-The LLM Gateway writes the words. K2 and Vertex Gemini read the same
-evidence and return the same JSON shape. They do not take the microphone.
+AssemblyAI phrases a decision code already accepted. Vertex Gemini decides
+only when Jev is unsure. K2 is the backup if Gemini returns an error.
 """
 import json
 import os
@@ -10,6 +10,15 @@ import subprocess
 
 import requests
 from openai import OpenAI
+
+PHRASE_SYSTEM = (
+    "You phrase a decision that code already made. "
+    "Reply with JSON only, no markdown fence: "
+    '{"summary":"two or three spoken sentences","paths":["real/file.py"],"concerns":["short point"]}. '
+    "Do not decide whether the change is safe and do not add a safe field. "
+    "Speak the decision written in the evidence. paths must be copied from the evidence, never invented."
+)
+PHRASE_MODEL = "qwen3.5-4b-32k-fast"
 
 READER_SYSTEM = (
     "You review code for a human who cannot read every line. "
@@ -47,6 +56,26 @@ def _parse_reader(text: str, source: str) -> dict:
     }
 
 
+def gateway_phrase(evidence: str) -> dict:
+    """Speak the decision. This reply is not allowed to set safe."""
+    api_key = os.environ.get("ASSEMBLYAI_API_KEY")
+    if not api_key:
+        return {"source": "llm_gateway", "error": "ASSEMBLYAI_API_KEY is not set", "summary": "", "paths": []}
+    client = OpenAI(base_url="https://llm-gateway.assemblyai.com/v1", api_key=api_key)
+    response = client.chat.completions.create(
+        model=PHRASE_MODEL,
+        messages=[
+            {"role": "system", "content": PHRASE_SYSTEM},
+            {"role": "user", "content": evidence[:24000]},
+        ],
+        max_tokens=900,
+        temperature=0.2,
+    )
+    parsed = _parse_reader(response.choices[0].message.content or "", "llm_gateway")
+    parsed.pop("safe", None)
+    return parsed
+
+
 def gateway_draft(evidence: str) -> dict:
     api_key = os.environ.get("ASSEMBLYAI_API_KEY")
     if not api_key:
@@ -62,6 +91,49 @@ def gateway_draft(evidence: str) -> dict:
         temperature=0.2,
     )
     return _parse_reader(response.choices[0].message.content or "", "llm_gateway")
+
+
+def k2_choose_tool(evidence: str, names: list) -> dict:
+    """Escalate a tool choice only when Jev is under 0.9. Low effort, one name."""
+    api_key = os.environ.get("IFM_API_TOKEN") or os.environ.get("IFM_API_KEY")
+    if not api_key:
+        return {"source": "k2", "error": "IFM_API_TOKEN is not set", "tool": "give_up"}
+    client = OpenAI(base_url=os.environ.get("IFM_BASE_URL", "https://api.ifm.ai/v1"), api_key=api_key)
+    allowed = ", ".join(names)
+    try:
+        response = client.chat.completions.create(
+            model=os.environ.get("IFM_MODEL", "IFM/K2-Horizon-375B-A23B"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Pick one tool. Reply with JSON only: {\"tool\":\"name\"}. "
+                        f"tool must be one of: {allowed}. "
+                        "explain_file answers what code does. focus_file only moves the map. "
+                        "give_up when none of the tools can answer."
+                    ),
+                },
+                {"role": "user", "content": evidence[:8000]},
+            ],
+            max_tokens=200,
+            temperature=0.2,
+            extra_body={"reasoning_effort": "low"},
+        )
+    except Exception as exc:
+        return {"source": "k2", "error": str(exc)[:240], "tool": "give_up"}
+    raw = (response.choices[0].message.content or "").strip()
+    tool = ""
+    try:
+        data = json.loads(raw[raw.find("{") : raw.rfind("}") + 1])
+        tool = str((data or {}).get("tool") or "")
+    except (json.JSONDecodeError, ValueError):
+        for name in names:
+            if name in raw:
+                tool = name
+                break
+    if tool not in names:
+        tool = "give_up"
+    return {"source": "k2", "tool": tool}
 
 
 def k2_read(evidence: str) -> dict:

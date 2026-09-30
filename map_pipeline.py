@@ -148,7 +148,13 @@ def parse_files(blobs: dict[str, bytes]) -> dict:
         reverse=True,
     )
     truncated = len(catalog) > MAX_FILES
-    kept = [(0, len(raw), path, raw) for path, raw in catalog[:MAX_FILES]]
+    chosen = list(catalog[:MAX_FILES])
+    chosen_paths = {path for path, _raw in chosen}
+    for path, raw in catalog:
+        if os.path.basename(path).lower().startswith("readme") and path not in chosen_paths:
+            chosen.append((path, raw))
+            chosen_paths.add(path)
+    kept = [(0, len(raw), path, raw) for path, raw in chosen]
     kept_paths = {path for _score, _size, path, _raw in kept}
     files = {}
     texts = {}
@@ -216,15 +222,24 @@ def parse_files(blobs: dict[str, bytes]) -> dict:
 
 def _snippets(texts: dict) -> dict:
     """Short excerpts for later questions and checks. Not sent to the browser."""
+    def rank(path: str) -> tuple:
+        base = os.path.basename(path).lower()
+        if base.startswith("readme"):
+            return (0, path)
+        if base in {"package.json", "pyproject.toml", "cargo.toml", "go.mod", "setup.py", "composer.json"}:
+            return (1, path)
+        return (2, path)
+
     kept = {}
-    for path, text in texts.items():
+    for path, text in sorted(texts.items(), key=lambda item: rank(item[0])):
         if len(kept) >= 160:
             break
         lower = path.lower()
         if lower.endswith((".lock", ".min.js", ".min.css", ".map")):
             continue
         if text:
-            kept[path] = text[:5000]
+            limit = 8000 if os.path.basename(path).lower().startswith("readme") else 5000
+            kept[path] = text[:limit]
     return kept
 
 
@@ -609,6 +624,15 @@ def public_map(payload: dict) -> dict:
         "focus_path": payload.get("focus_path"),
         "pull_number": payload.get("pull_number"),
     }
+
+
+def explain_map(payload: dict) -> str:
+    """Say what the circle map is showing, not a diagram inside the source."""
+    return (
+        landmark_brief(payload)
+        + " Bigger circles are larger files. Colour is the language."
+        + " A ring marks an entry point, a core file, or a hotspot."
+    )
 
 
 def landmark_brief(payload: dict) -> str:

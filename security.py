@@ -20,7 +20,7 @@ RISKY = re.compile(
     r"\beval\s*\(|\bexec\s*\(|pickle\.loads\s*\(|yaml\.load\s*\(|dangerouslySetInnerHTML|innerHTML\s*="
 )
 LICENSE_NAMES = {"license", "license.md", "license.txt", "copying", "copying.md", "unlicense"}
-FLOOR = 0.55
+FLOOR = 0.9
 
 
 def scan_open() -> dict:

@@ -12,9 +12,7 @@ load_dotenv()
 
 import map_pipeline
 from github_tools import get_commit_diff, list_recent_commits, set_active_repo
-import jev_gate
-import review_gate
-import specialists
+from orchestrator import judge_change
 
 mcp = MCPServer("friday")
 
@@ -56,16 +54,11 @@ def review_diff(repo: str, sha: str = "") -> str:
         sha = commits["commits"][0]["sha"]
     commit = get_commit_diff(sha)
     diff = "\n".join(f"{item.get('filename')}\n{item.get('patch') or ''}" for item in commit.get("files") or [])
-    review = jev_gate.review_change(commit.get("message") or sha, "", diff)
-    draft = specialists.gateway_draft(diff[:12000])
-    gate = review_gate.validate_review(
-        jev=review,
-        draft=draft,
-        known_paths=set(payload["files"]),
-        second_reads=[],
-        second_reads_required=jev_gate.needs_second_reader(review),
-    )
-    return gate["say"]
+    paths = [item.get("filename") for item in commit.get("files") or [] if item.get("filename")]
+    known = set(payload["files"])
+    known.update(paths)
+    judged = judge_change(commit.get("message") or sha, "", diff, paths, known)
+    return judged["gate"]["say"]
 
 
 if __name__ == "__main__":

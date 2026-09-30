@@ -20,6 +20,7 @@ print(f"[startup] AGENT_LLM_PROVIDER = {(os.environ.get('AGENT_LLM_PROVIDER') or
 
 from agent import run_agent
 from github_tools import (
+    active_repo,
     begin_oauth,
     confirm_write,
     connect_github,
@@ -91,7 +92,7 @@ async def api_run(audio: UploadFile = File(...)):
                 return {"summary": posted.get("say") or "Posted.", "tool_calls": [{"name": "confirm_write", "args": {}, "result": posted}]}
             if posted.get("status") == "cancelled":
                 return {"summary": posted.get("say"), "tool_calls": [{"name": "confirm_write", "args": {}, "result": posted}]}
-        return run_agent(transcript)
+        return run_agent(transcript, transcript_id="api-run-new")
 
     try:
         agent_result = await asyncio.to_thread(_agent)
@@ -134,7 +135,10 @@ async def voice_tool(request: Request):
 async def get_map(repo: str):
     def _open():
         set_active_repo(repo)
-        return map_pipeline.public_map(map_pipeline.open_repo(repo))
+        payload = map_pipeline.public_map(map_pipeline.open_repo(repo))
+        payload["voice_prompt"] = voice_broker.system_prompt()
+        payload["voice_keyterms"] = voice_broker.repo_keyterms()
+        return payload
 
     try:
         return await asyncio.to_thread(_open)
@@ -159,9 +163,9 @@ async def architecture(request: Request):
 
 
 @app.get("/api/github/oauth/start")
-async def github_oauth_start():
+async def github_oauth_start(request: Request):
     try:
-        url = begin_oauth()
+        url = begin_oauth(request.query_params.get("return") or "")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse(url)
@@ -173,10 +177,21 @@ async def github_oauth_callback(code: str = "", state: str = ""):
         return finish_oauth(code, state)
 
     try:
-        await asyncio.to_thread(_call)
+        signed_in = await asyncio.to_thread(_call)
     except Exception:
         return RedirectResponse("/?github=failed")
-    return RedirectResponse("/?github=connected")
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    from github_tools import safe_return_path
+
+    back = safe_return_path((signed_in or {}).get("return_to") or "/")
+    parts = urlsplit(back)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["github"] = "connected"
+    if "repo" not in query and active_repo():
+        query["repo"] = active_repo()
+    target = urlunsplit(("", "", parts.path or "/", urlencode(query), ""))
+    return RedirectResponse(target)
 
 
 @app.get("/api/github/repos")
@@ -226,12 +241,12 @@ async def get_history(count: int = 30):
 
 @app.post("/api/ask")
 async def api_ask(request: Request):
-    import ask
+    import chat
 
     body = await request.json()
 
     def _call():
-        return ask.answer(body.get("question") or "")
+        return chat.turn(body.get("question") or "")
 
     try:
         return await asyncio.to_thread(_call)
