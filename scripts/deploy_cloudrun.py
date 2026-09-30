@@ -6,7 +6,9 @@ to the service URL after the first deploy when it still points at localhost.
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -134,7 +136,7 @@ def main() -> int:
 
     run(deploy_cmd)
 
-    def service_url() -> str:
+    def service_urls() -> list[str]:
         url_proc = subprocess.run(
             gcloud(
                 "run",
@@ -146,15 +148,39 @@ def main() -> int:
                 "--region",
                 args.region,
                 "--format",
-                "value(status.url)",
+                "json",
             ),
             capture_output=True,
             text=True,
             check=True,
         )
-        return (url_proc.stdout or "").strip().rstrip("/")
+        payload = json.loads(url_proc.stdout or "{}")
+        annotations = (payload.get("metadata") or {}).get("annotations") or {}
+        raw = annotations.get("run.googleapis.com/urls") or "[]"
+        try:
+            listed = json.loads(raw)
+        except json.JSONDecodeError:
+            listed = []
+        urls = [str(u).rstrip("/") for u in listed if u]
+        if not urls:
+            status_url = ((payload.get("status") or {}).get("url") or "").strip().rstrip("/")
+            if status_url:
+                urls = [status_url]
+        return urls
 
-    base = service_url()
+    def canonical_service_url(urls: list[str]) -> str:
+        """Prefer the stable *-{projectNumber}.{region}.run.app hostname."""
+        pattern = re.compile(r"-\d+\.[a-z0-9-]+\.run\.app$", re.I)
+        for url in urls:
+            host = url.split("://", 1)[-1].split("/", 1)[0]
+            if pattern.search(host):
+                return url
+        return urls[0] if urls else ""
+
+    base = canonical_service_url(service_urls())
+    if not base:
+        print("Could not resolve Cloud Run service URL.", file=sys.stderr)
+        return 1
     callback = f"{base}/api/github/callback"
 
     run(
@@ -172,9 +198,11 @@ def main() -> int:
         )
     )
 
-    service_url_final = service_url()
-    print(f"\nDeployed: {service_url_final}")
-    print(f"Set GitHub OAuth callback to: {service_url_final}/api/github/callback")
+    all_urls = service_urls()
+    print(f"\nDeployed (canonical): {base}")
+    if len(all_urls) > 1:
+        print("Also reachable at:", ", ".join(u for u in all_urls if u != base))
+    print(f"Set GitHub OAuth callback to: {base}/api/github/callback")
     return 0
 
 

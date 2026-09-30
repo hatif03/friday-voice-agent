@@ -1,5 +1,7 @@
 # Friday — 3-minute demo script
 
+**After you record:** export a short GIF to [assets/demo.gif](../assets/demo.gif) for the README, hackathon form, and `https://<your-host>/assets/demo.gif`.
+
 **Before you record**
 
 - Open: `https://friday-voice-agent-147606977567.us-central1.run.app/?repo=YOUR_OWNER/YOUR_REPO` (pick a repo you know: landmarks, a few commits, maybe open issues).
@@ -110,15 +112,23 @@ Use **only A or B**, not both.
 
 ---
 
-## 2:25–2:55 — Close
+## 2:25–3:15 — Close (longer outro)
 
-**On screen:** Back to map + chat.
+**On screen:** Back to the circle map. Optionally scroll the chat so the lines from this demo are visible (map explain, latest commit, scan or review, staged issue, posted issue).
 
-**You say:**
+**You say (pace: calm, not rushed—~45–50 seconds):**
 
-> Friday doesn’t replace your judgment. It gives you a map, a voice, and a hard stop before anything leaves the building. Try it on your repo—the link is in the README.
+> In this walkthrough we only touched a slice of Friday—but it’s the slice that matters for control.
+>
+> We used **describe the map** so you see entry points, core files, and hotspots in one place—not fifty tabs. We pulled **what changed in the latest commit** straight from GitHub. We ran a **security scan**—or asked **is this safe to merge**—so judgment is structured, not a gut LGTM. And we **staged an issue**, then said **yes** on a **separate turn** before anything hit the repo. That’s the hard stop.
+>
+> Under the hood there’s more you didn’t see on camera: **list landmarks** and **explain each landmark file**, **focus** a path and **explain what that file does**, **architecture** across the repo, **open issues and pull requests**, **read a thread** by number, **comment on an issue** with the same draft-and-confirm flow, **import and heat layers** on the map, and an honest **give up** when the repo can’t answer.
+>
+> Friday doesn’t replace your judgment. It gives you a **map**, a **voice**, and **consent** before anything ships. Same brain whether you hold the mic or type in Ask.
+>
+> Try it on your repo—live link and README are below. Thanks for watching.
 
-**On screen (optional end card):**  
+**On screen (end card, hold 5 seconds):**  
 `friday-voice-agent-147606977567.us-central1.run.app`  
 `github.com/hatif03/friday-voice-agent`
 
@@ -149,6 +159,6 @@ Use **only A or B**, not both.
 3. Latest commit  
 4. Security **or** safe to merge  
 5. Open issue titled Friday demo video → **yes** → show GitHub  
-6. Close: orientation + consent  
+6. Close: recap tools used + tease the rest + CTA  
 
-**Target length:** 2:45–3:15 with natural pauses.
+**Target length:** ~3:00–3:20 with the longer close.

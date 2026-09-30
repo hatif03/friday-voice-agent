@@ -22,13 +22,16 @@ The script:
 1. Enables Cloud Run, Cloud Build, and Artifact Registry APIs
 2. Builds the container from `Dockerfile` via `gcloud run deploy --source`
 3. Loads non-empty variables from `.env` into the service
-4. Sets `GITHUB_OAUTH_CALLBACK` to `https://<service-url>/api/github/callback`
+4. Sets `GITHUB_OAUTH_CALLBACK` to the **canonical** hostname (`https://<service>-<project-number>.<region>.run.app/api/github/callback`), not the alternate `*.a.run.app` URL Cloud Run also exposes
+
+Cloud Run serves the same revision on both hostnames; keep GitHub OAuth and docs on the canonical `*-147606977567.us-central1.run.app` link so sign-in matches `GITHUB_OAUTH_CALLBACK`.
 
 ## After deploy
 
 1. In your [GitHub OAuth app](https://github.com/settings/developers), set **Homepage URL** and **Authorization callback URL** to the callback printed by the script.
 2. Open the service URL with `?repo=owner/name`.
 3. Health check: `GET /api/health`
+4. Demo GIF (if shipped in the image): `GET /assets/demo.gif`
 
 ## Manual deploy
 

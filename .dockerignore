@@ -10,8 +10,6 @@ __pycache__
 .github_session
 .friday_agent_id
 cache
-reference
 docs/presentation/node_modules
 *.md
 !README.md
-assets/*.gif

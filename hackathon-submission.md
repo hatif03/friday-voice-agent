@@ -34,6 +34,8 @@ Built for the moment we are in: stay oriented, stay in control, and act delibera
 
 **Live demo:** https://friday-voice-agent-147606977567.us-central1.run.app/?repo=owner/name
 
+**Demo recording (GIF):** [assets/demo.gif](assets/demo.gif) · https://friday-voice-agent-147606977567.us-central1.run.app/assets/demo.gif
+
 **Local:** `python app.py` — see `docs/DEPLOY.md` for Cloud Run.
 
 **Tests:** `docs/TEST_QUESTIONS.md`, `python test_friday.py`

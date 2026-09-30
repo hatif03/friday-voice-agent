@@ -7,7 +7,9 @@ AI generates code faster than humans can review it. Vulnerabilities are hunted a
 **Live demo:** https://friday-voice-agent-147606977567.us-central1.run.app  
 Add `?repo=owner/name` (e.g. `hatif03/midnight-pool`).
 
-![Voice GitHub Agent Demo](assets/demo.gif)
+![Friday demo walkthrough](assets/demo.gif)
+
+Recording also at `/assets/demo.gif` when the app is running (local or Cloud Run).
 
 ## Why Friday exists
 
@@ -34,6 +36,7 @@ We are asked to review mountains of AI-generated code with human bandwidth. That
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Google Cloud Run deploy |
 | [hackathon-submission.md](hackathon-submission.md) | Form-ready copy |
 | [docs/presentation/Friday-Voice-Agent.pptx](docs/presentation/Friday-Voice-Agent.pptx) | YC-style deck |
+| [assets/demo.gif](assets/demo.gif) | Product walkthrough GIF |
 
 ## Tech stack
 

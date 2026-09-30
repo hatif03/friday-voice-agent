@@ -40,6 +40,7 @@ import voice_broker
 
 app = FastAPI(title="Friday")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 templates = Jinja2Templates(directory="templates")
 
 if (os.environ.get("GITHUB_REPO") or "").strip():

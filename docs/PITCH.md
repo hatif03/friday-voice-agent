@@ -37,3 +37,9 @@ Optional **review intelligence** (Jev + escalation) gives a structured verdict o
 ## Demo URL
 
 https://friday-voice-agent-147606977567.us-central1.run.app/?repo=owner/name
+
+## Demo recording
+
+- Repo: [assets/demo.gif](../assets/demo.gif) (also on README)
+- Hosted: https://friday-voice-agent-147606977567.us-central1.run.app/assets/demo.gif (after deploy includes `assets/`)
+- Script: [docs/DEMO_SCRIPT.md](DEMO_SCRIPT.md)
