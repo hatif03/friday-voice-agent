@@ -1,8 +1,8 @@
 """One turn for typed and spoken questions.
 
 Unambiguous requests (the map, a named GitHub list, a later yes) run directly.
-Multi-step GitHub triage can use the AssemblyAI Gateway tool loop (see agent.py),
-matching the reference Voice GitHub Agent. Jev chooses the tool for map/repo work.
+Multi-step GitHub triage can use the AssemblyAI Gateway tool loop (agent.py).
+Jev chooses the tool for map/repo work.
 K2 chooses only when that confidence is under 0.9. The spoken line is the tool's say,
 or an honest stop.
 """
@@ -469,7 +469,7 @@ def _local_say(name: str, payload: dict, slug: str, args: dict | None = None) ->
 
 
 def _github_gateway_mode() -> str:
-    """off | fallback | multi | all — multi is the default (reference-style triage only)."""
+    """off | fallback | multi | all — multi is the default (Gateway triage only)."""
     raw = (os.environ.get("FRIDAY_GITHUB_GATEWAY") or "multi").strip().lower()
     if raw in {"0", "false", "off", "no"}:
         return "off"
@@ -509,7 +509,7 @@ def _needs_map_orchestrator(utterance: str) -> bool:
 
 
 def _wants_github_gateway(utterance: str) -> bool:
-    """When to use the reference-style Gateway agent loop instead of one Jev tool."""
+    """When to use the Gateway agent loop instead of one Jev tool."""
     raw = utterance or ""
     if _needs_map_orchestrator(raw):
         return False
@@ -518,7 +518,7 @@ def _wants_github_gateway(utterance: str) -> bool:
         return bool(re.search(r"\b(issue|commit|pull|pr|comment|diff|merge|tracker)\b", raw, re.I))
     if mode == "fallback":
         return False
-    # multi: spoken triage like the Hands-On AI Engineering voice-github-agent demo.
+    # multi: spoken commit/issue triage via run_agent.
     if re.search(r"\b(check|review|inspect|look at|read)\b", raw, re.I) and re.search(
         r"\b(commit|commits|diff|change|changes)\b", raw, re.I
     ):

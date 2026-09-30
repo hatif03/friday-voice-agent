@@ -2,44 +2,44 @@
 
 ## 1. Submission Title
 
-**Friday: Voice Repo Agent**
+**Friday: Voice Repo Control**
 
-*(22 characters)*
+*(26 characters)*
 
 ## 2. Short Description
 
-Talk to any GitHub repo on a live code map. Friday hears you via AssemblyAI, explains structure, triages issues, and stages writes—only posting after you say yes.
+AI ships code faster than humans can review. Friday is a voice-first map of your repo—explain, scan risk, triage GitHub, and stage writes until you say yes.
 
-*(159 characters)*
+*(154 characters)*
 
 ## 3. Long Description
 
-Friday is a voice-first control surface for open-source repositories. Instead of clicking through files, commits, and issues, you hold the mic (or type) and ask in plain language: what does this map mean, where does the app start, what changed last, are there open blockers, or open an issue if something looks wrong.
+We are in an existential squeeze: models generate code at a pace no team can fully review, while AI-driven exploitation of vulnerabilities keeps improving. Humans are still the approval layer—but they no longer see the whole system, only endless diffs and tabs.
 
-The UI renders a circle-pack fingerprint of the repository—entry points, core files, and hotspots—so you see shape and heat at a glance. Landmarks anchor explanations; focus and layers (heat, import arcs, line-count sizing) keep the visualization aligned with your question.
+**Friday** is a voice-first **control surface** for an open GitHub repository. A circle-pack **map** shows entry points, core files, and hotspots so you grasp shape before depth. You speak or type: explain the landmarks, what changed in the last commit, whether it is safe to merge, scan for security issues, list blockers—or stage an issue or comment. Nothing posts to GitHub until you confirm **yes** on a **separate** turn.
 
-Under the hood, Friday combines three ideas. First, **AssemblyAI** powers live conversation: Universal speech models for the Voice Agent session, plus Sync STT and the LLM Gateway for tool-calling when a task needs multiple GitHub steps. Second, **deterministic repo ingest** builds the map and supplies grounded answers for file and architecture questions without hallucinating paths. Third, **human-in-the-loop writes**: creating issues and posting comments only stages a draft until you confirm in a later turn—matching safe agent design for production GitHub accounts.
+Friday grounds answers in **deterministic ingest** (real paths, imports, landmarks) plus live GitHub data—not a generic chatbot over filenames. AssemblyAI powers live voice; an LLM Gateway tool loop handles multi-step triage; optional review intelligence (Jev with escalation) structures merge-risk answers when confidence is low.
 
-Friday also supports optional **review intelligence**: structured verdicts for merge-risk questions, with escalation when confidence is low. GitHub OAuth lets signed-in users act on their own repos while keeping tokens server-side.
+Built for the moment we are in: stay oriented, stay in control, and act deliberately when code and threats both move faster than human review.
 
-Built for hackathons and daily triage: one URL, one repo, hands-free check-ins before standup or while reviewing a teammate’s project.
-
-*(~1,450 characters — room for edits within 2,000 limit)*
+*(~1,180 characters)*
 
 ## 4. Additional Information
 
-**Stack:** FastAPI, AssemblyAI Voice Agent + Sync STT + LLM Gateway (`qwen3-next-80b-a3b` in the reference loop; voice broker model configurable), GitHub REST API, D3 circle pack, optional IFM K2 Horizon and TypeSafe Jev for routing and review.
+**Problem we pitch:** Infinite AI-generated code vs finite human review; faster offensive AI vs slower defensive understanding; risk of losing control of what actually ships.
 
-**Demo flow:** Open `http://localhost:5000/?repo=owner/name` → explore map → hold mic → “Explain the landmarks” → “What changed in the latest commit?” → “Open an issue titled …” → “yes” to post.
+**Solution:** Map + voice + grounded tools + human-in-the-loop GitHub writes + optional verdict gate for merge safety.
 
-**Docs in repo:** `README.md`, `AGENTS.md`, `docs/TEST_QUESTIONS.md`, `docs/ARCHITECTURE.md`.
+**Stack:** FastAPI, AssemblyAI (Voice Agent, Sync STT, LLM Gateway), GitHub REST/OAuth, D3, TypeSafe Jev, optional IFM K2 / Vertex.
 
-**Test checklist:** See `docs/TEST_QUESTIONS.md` (37 scenarios). Run `python test_friday.py` for automated coverage.
+**Live demo:** https://friday-voice-agent-147606977567.us-central1.run.app/?repo=owner/name
 
-**Env highlights:** `ASSEMBLYAI_API_KEY`, `GITHUB_TOKEN` or OAuth, `GITHUB_REPO`, `AGENT_LLM_PROVIDER` (`assemblyai` | `ifm`), `FRIDAY_GITHUB_GATEWAY` (`multi` | `all` | `off`).
+**Local:** `python app.py` — see `docs/DEPLOY.md` for Cloud Run.
 
-**Reliability note (Jev vs reference agent):** Jev picks a *single* tool name quickly; GitHub *arguments* (issue title, body, number) come from parsers and follow-up state—or from the AssemblyAI Gateway multi-tool loop (`agent.run_agent`), like the [Hands-On AI Engineering voice-github-agent](https://github.com/Sumanth077/Hands-On-AI-Engineering/tree/main/ai_agents/voice-github-agent). Map-specific tools still need the orchestrator. The most reliable all-around setup is a **hybrid**: Voice Agent → `friday_turn` → direct parsers for yes/no and writes; Gateway loop for multi-step GitHub triage; K2 only when Jev confidence is low for *map* routing—not as a replacement for Gateway tool JSON on writes. Setting `FRIDAY_GITHUB_GATEWAY=all` moves most GitHub utterances to the reference loop; dropping Jev entirely would hurt fast, cheap routing to `explain_file`, `list_landmarks`, and map layers unless every utterance goes through a full 8-turn agent (higher latency and cost).
+**Tests:** `docs/TEST_QUESTIONS.md`, `python test_friday.py`
 
-**Presentation:** `docs/presentation/Friday-Voice-Agent.pptx`
+**Deck:** `docs/presentation/Friday-Voice-Agent.pptx` — narrative in `docs/PITCH.md`
 
-*(~1,650 characters)*
+**Env:** `ASSEMBLYAI_API_KEY`, GitHub OAuth or `GITHUB_TOKEN`, `FRIDAY_GITHUB_GATEWAY` (`multi` default), `AGENT_LLM_PROVIDER`
+
+*(~950 characters)*

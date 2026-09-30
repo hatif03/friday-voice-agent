@@ -8,6 +8,6 @@ __pycache__/
 cache/
 .pytest_cache/
 
-# Third-party reference trees (not part of this app)
-reference/
 docs/presentation/node_modules/
+cloudrun-env.yaml
+reference/

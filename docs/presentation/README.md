@@ -1,13 +1,14 @@
 # Presentation
 
-## Build
+## Build (YC-style deck)
 
 ```bash
-cd docs/presentation
-npm install
-node build-deck.js
+pip install python-pptx
+python docs/presentation/build_pitch_deck.py
 ```
 
-Output: `Friday-Voice-Agent.pptx`
+Output: `Friday-Voice-Agent.pptx` (dark slides, problem → solution → diagram → demo).
 
-`node_modules/` is gitignored; the committed `.pptx` is the deliverable for hackathon reviewers.
+Narrative source: [../PITCH.md](../PITCH.md).
+
+Optional Node rebuild (legacy): `node build-deck.js` after `npm install pptxgenjs`.

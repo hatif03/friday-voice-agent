@@ -44,9 +44,9 @@ FastAPI app (`uvicorn app:app`): the browser holds an AssemblyAI Voice Agent soc
 | Agent | `AGENT_LLM_PROVIDER=assemblyai` → LLM Gateway `qwen3-next-80b-a3b`; `ifm` → K2 Horizon on `api.ifm.ai` | OpenAI Python client in `agent.py` |
 | Secrets | `ASSEMBLYAI_API_KEY`, `GITHUB_TOKEN` in `.env` | Never expose keys in `static/` or client-side code |
 
-The [Hands-On AI Engineering voice-github-agent](https://github.com/Sumanth077/Hands-On-AI-Engineering/tree/main/ai_agents/voice-github-agent) is the reference for Sync STT + Gateway `run_agent`; Friday reuses that loop via `agent.py` and `FRIDAY_GITHUB_GATEWAY`.
+Multi-step GitHub triage uses `agent.run_agent()` (AssemblyAI LLM Gateway) when `FRIDAY_GITHUB_GATEWAY` is enabled. Map and review tools use `orchestrator` + Jev.
 
-**Docs:** `README.md`, `docs/ARCHITECTURE.md`, `docs/TEST_QUESTIONS.md`, `hackathon-submission.md`.
+**Docs:** `README.md`, `docs/PITCH.md`, `docs/ARCHITECTURE.md`, `docs/TEST_QUESTIONS.md`, `docs/DEPLOY.md`, `hackathon-submission.md`.
 
 ## Conventions
 

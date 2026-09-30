@@ -81,7 +81,7 @@ def _assistant_message_for_history(message) -> dict:
 
 
 def session_context() -> str:
-    """Runtime repo state for the reference-style GitHub agent loop."""
+    """Runtime repo state for the Gateway GitHub agent loop."""
     import github_tools
 
     lines = [f"Active repository: {github_tools.active_repo()}."]
